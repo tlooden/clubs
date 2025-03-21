@@ -6,10 +6,6 @@ Created on Mon Nov 25 19:58:16 2024
 @author: triloo
 """
 
-import sys
-#sys.path.append('/home/mrstats/triloo/Workspace/Projects/spade2/code/simulation')
-#sys.path.append('/home/mrstats/triloo/Workspace/Projects/spade/')
-
 import clubsdeck as cd
 import simul_helpers as simhelp
 from sklearn.metrics import adjusted_rand_score
@@ -17,7 +13,7 @@ from sklearn.metrics import adjusted_rand_score
 #%% generate toy matrices
 
 toymats=simhelp.generate_symmetric_matrices(num_samples=100, matrix_size=20, num_classes=4,
-                                        signal_strength=0.3, noise_level=1.0, random_state=99)
+                                        signal_strength=0.3, noise_level=1.0, random_state=77)
           
 #%% extract values  
 mats = toymats[0]

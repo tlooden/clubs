@@ -13,7 +13,6 @@ from kneed import KneeLocator
 from scipy.linalg import eigh
 from sklearn.metrics.pairwise import rbf_kernel
 from sklearn.decomposition import PCA
-from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
 import seaborn as sns
 import matplotlib.pyplot as plt
