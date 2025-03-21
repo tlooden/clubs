@@ -1,0 +1,64 @@
+# Python virtual environment
+venv/
+env/
+.env/
+.venv/
+
+# Conda environment
+.conda/
+conda-env/
+conda-bld/
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+*.egg
+MANIFEST
+
+# IDE specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.settings/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb_metadata
+jupyter_notebook_config.py
+
+# Local development settings
+.env
+.env.local
+.env.*.local
+
+# Coverage reports
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+
+# Logs
+*.log
+logs/
+pip-log.txt
+
+# Documentation
+docs/_build/
+doc/build/
+
+# macOS specific
+.DS_Store
+
+# Windows specific
+Thumbs.db
