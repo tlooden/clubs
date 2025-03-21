@@ -17,262 +17,261 @@ from sklearn.cluster import KMeans
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-#%%
-
-def clubs(targets, reference = None, DRdim = 2, embeddingdim=4, gamma=0.1, random_state = None):
+def clubs(targets, reference=None, DRdim=2, embeddingdim=4, gamma=0.1, random_state=None):
+    """
+    Performs CLUBS clustering on target matrices.
     
-    # subject specific spade
+    Parameters:
+        targets: Array of target matrices to cluster
+        reference: Reference matrix (defaults to mean of targets)
+        DRdim: Dimension for feature reduction
+        embeddingdim: Dimension for spectral embedding
+        gamma: RBF kernel parameter
+        random_state: Random seed for reproducibility
+        
+    Returns:
+        labels: Cluster assignments
+        clusterdim: Estimated number of clusters
+        indicator_vectors: Spectral embedding vectors
+    """
+    # Extract SPADE features
     features = spadefeatures(targets, reference, DRdim)
     features_corr = np.corrcoef(features)
     
-    # sparsify
+    # Create similarity matrix
     A = rbf_kernel(features_corr, gamma=gamma)
     
-    # spectral embedding
-    indicator_vectors =  spectral_embedding(A, embeddingdim)
+    # Get spectral embedding
+    indicator_vectors = spectral_embedding(A, embeddingdim)
     
-    # find cluster dimensionality
+    # Estimate optimal number of clusters
     clusterdim = clusterdim_estimate(features)
     
-    # clustering
-    kmeans = KMeans(n_clusters=clusterdim, init='k-means++', n_init=10, random_state= random_state)
+    # Perform clustering
+    kmeans = KMeans(
+        n_clusters=clusterdim,
+        init='k-means++',
+        n_init=10,
+        random_state=random_state
+    )
     labels = kmeans.fit_predict(indicator_vectors)
     
     return labels, clusterdim, indicator_vectors
 
-#%%
-
-# enter reference matrix and target matrices, returns dim spade features
-def spadefeatures(targets, reference = None, DRdim=2):
+def spadefeatures(targets, reference=None, DRdim=2):
+    """
+    Extracts SPADE features from target matrices.
     
-    # if no reference is presented, take mean of the targets.
+    Parameters:
+        targets: Array of target matrices
+        reference: Reference matrix (defaults to mean of targets)
+        DRdim: Dimension for feature reduction
+        
+    Returns:
+        allfeatures: Matrix of extracted features
+    """
     if reference is None:
-        reference = np.mean(targets,0)
+        reference = np.mean(targets, 0)
 
+    allfeatures = None
     for i in range(len(targets)):
-        csp_eigvecs, proj_eigvals1, proj_eigvals2 = basic_csp(reference, targets[i])
+        csp_eigvecs, _, _ = basic_csp(reference, targets[i])
+        features = features_csp(csp_eigvecs, targets)
+        features2 = select_columns(features, DRdim)
         
-        features=features_csp(csp_eigvecs,targets)
-        features2=select_columns(features,DRdim)
-        
-        if i==0:
-            allfeatures=features2
+        if allfeatures is None:
+            allfeatures = features2
         else:
-            allfeatures=np.vstack([allfeatures,features2])
+            allfeatures = np.vstack([allfeatures, features2])
             
     return allfeatures
 
-#%%
-
-def clusterdim_estimate(X):
+def clusterdim_estimate(X, plot=False):
+    """
+    Estimates optimal number of clusters using PCA and knee detection.
     
+    Parameters:
+        X: Input data matrix
+        
+    Returns:
+        knee: Estimated number of clusters (minimum 2)
+    """
     pca = PCA(n_components=10)
     pca.fit(X)
-    X_pca=pca.transform(X)
-    plot_PCA(pca.explained_variance_ratio_, 'PCA')
     
-    # find bending point in the graph
-    y_knee=pca.explained_variance_ratio_
-    x_knee=np.arange(len(y_knee))
+    # Find knee point in explained variance
+    y_knee = pca.explained_variance_ratio_
+    x_knee = np.arange(len(y_knee))
     
     kneedle = KneeLocator(x_knee, y_knee, curve='convex', direction='decreasing')
-    knee = kneedle.knee
+    knee = max(kneedle.knee, 2)  # Ensure minimum of 2 clusters
     
-    if knee == 1:
-        knee = 2
-    
+    if plot:
+        plot_PCA(y_knee, 'PCA Explained Variance')
+        
     return knee
 
-
-#%%
-
 def select_columns(matrix, n):
-    # Initialize an empty list to store selected column indices
+    """
+    Selects columns from matrix alternating between start and end.
+    
+    Parameters:
+        matrix: Input matrix
+        n: Number of columns to select
+        
+    Returns:
+        selected_matrix: Matrix with selected columns, flattened
+    """
+    num_columns = matrix.shape[1]
     selected_columns = []
     
-    # Total number of columns in the matrix
-    num_columns = matrix.shape[1]
-    
-    # Select columns following the pattern
     for i in range(n):
         if i % 2 == 0:
-            # Even index (0, 2, 4, ...) - take columns from the start
-            selected_columns.append(i // 2)
+            selected_columns.append(i // 2)  # From start
         else:
-            # Odd index (1, 3, 5, ...) - take columns from the end
-            selected_columns.append(num_columns - 1 - (i // 2))
+            selected_columns.append(num_columns - 1 - (i // 2))  # From end
     
-    # Extract the selected columns and concatenate them horizontally
     selected_matrix = matrix[:, selected_columns]
-    
-    # Optionally, flatten to a 1D vector if desired
-    selected_matrix = selected_matrix.reshape(-1, order='F')  # Uncomment if needed
-    
-    return selected_matrix
-    
-
-#%%
+    return selected_matrix.reshape(-1, order='F')
 
 def spectral_embedding(similarity_matrix, num_dims):
     """
-    Performs spectral clustering on a given similarity matrix and plots the samples
-    projected onto the smallest non-zero indicator eigenvectors.
-
+    Performs spectral embedding on similarity matrix.
+    
     Parameters:
-    - similarity_matrix (numpy.ndarray): The similarity matrix (must be square and symmetric).
-    - num_clusters (int): The number of clusters to form.
-    - plot (bool): Whether to plot the samples on the indicator eigenvectors.
-    - random_state (int or None): Random seed for reproducibility.
-
+        similarity_matrix: Square symmetric similarity matrix
+        num_dims: Number of dimensions for embedding
+        
     Returns:
-    - labels (numpy.ndarray): Cluster labels for each sample.
-    - indicator_vectors (numpy.ndarray): The indicator eigenvectors used for clustering.
+        indicator_vectors: Eigenvectors for embedding
     """
+    # Validate input
+    assert similarity_matrix.shape[0] == similarity_matrix.shape[1], "Matrix must be square"
+    assert np.allclose(similarity_matrix, similarity_matrix.T, atol=1e-8), "Matrix must be symmetric"
 
-    # Ensure the similarity matrix is square and symmetric
-    assert similarity_matrix.shape[0] == similarity_matrix.shape[1], "Similarity matrix must be square."
-    assert np.allclose(similarity_matrix, similarity_matrix.T, atol=1e-8), "Similarity matrix must be symmetric."
-
-    n_samples = similarity_matrix.shape[0]
-
-    # Step 1: Compute the Degree Matrix
+    # Compute normalized Laplacian
     degree_matrix = np.diag(similarity_matrix.sum(axis=1))
-
-    # Step 2: Compute the Unnormalized Laplacian
     laplacian_matrix = degree_matrix - similarity_matrix
-
-    # Step 3: Compute the Normalized Laplacian (symmetric normalization)
+    
     with np.errstate(divide='ignore'):
         D_inv_sqrt = np.diag(1.0 / np.sqrt(np.diag(degree_matrix)))
-        D_inv_sqrt[np.isinf(D_inv_sqrt)] = 0  # Replace infinities with zeros
-
+        D_inv_sqrt[np.isinf(D_inv_sqrt)] = 0
+    
     L_sym = D_inv_sqrt @ laplacian_matrix @ D_inv_sqrt
+    L_sym = (L_sym + L_sym.T) / 2  # Ensure symmetry
 
-    # Ensure L_sym is symmetric
-    L_sym = (L_sym + L_sym.T) / 2
-
-    # Step 4: Compute Eigenvalues and Eigenvectors
-    # Use eigh, which is for symmetric matrices
+    # Get eigenvectors
     eigenvalues, eigenvectors = np.linalg.eigh(L_sym)
-
-
-    # Sort eigenvalues and eigenvectors
     idx = np.argsort(eigenvalues)
     eigenvalues = eigenvalues[idx]
     eigenvectors = eigenvectors[:, idx]
 
-
-    # Identify non-zero (or significantly non-zero) eigenvalues
-    epsilon = 1e-8  # Threshold for considering an eigenvalue as zero
+    # Select vectors for smallest non-zero eigenvalues
+    epsilon = 1e-8
     nonzero_indices = np.where(eigenvalues > epsilon)[0]
-
-    # Select the smallest non-zero eigenvalues' corresponding eigenvectors
     indicator_vectors = eigenvectors[:, nonzero_indices[:num_dims]]
 
     return indicator_vectors
 
-#%%
-
 def plot_PCA(y, title='Line Plot'):
+    """Plots PCA explained variance."""
     sns.set_style('whitegrid')
     
-    num_points = len(y)
-    x = np.arange(1, num_points + 1)  # x runs from 1 to number of points
+    x = np.arange(1, len(y) + 1)
+    fig_width = max(6, min(12, len(y) / 10))
     
-    # Determine figure size based on data size
-    fig_width = max(6, min(12, num_points / 10))
-    fig_height = 6  # Fixed height
-    
-    plt.figure(figsize=(fig_width, fig_height))
+    plt.figure(figsize=(fig_width, 6))
     sns.lineplot(x=x, y=y, marker='o')
     
     plt.title(title, fontsize=16)
-    plt.xlabel('index', fontsize=12)
-    plt.ylabel('eigenvalue', fontsize=12)
-    
+    plt.xlabel('Index', fontsize=12)
+    plt.ylabel('Eigenvalue', fontsize=12)
     plt.tight_layout()
     plt.show()
-    
-#%%
+
 def plot_multiscatter(data, labels=None, saveloc=None):
     """
-    Generates scatter plots for multidimensional data and adds histograms on the diagonal.
+    Creates scatter plot matrix with histograms for multidimensional data.
     
     Parameters:
-    - data: A 2D NumPy array of shape (n_samples, n_dimensions).
-    - labels: A vector (or list) of labels for each point, used for coloring the points based on their cluster.
+        data: 2D array of shape (n_samples, n_dimensions)
+        labels: Optional cluster labels for coloring
+        saveloc: Optional path to save figure
     """
     n_samples, n_dimensions = data.shape
+    labels = np.zeros(n_samples) if labels is None else labels
     
-    # If labels are not provided, create a default label vector
-    if labels is None:
-        labels = np.zeros(n_samples)
-    
-    # Get a list of unique labels for coloring purposes
+    # Setup colors
     unique_labels = np.unique(labels)
-    
-    # Define color map
-    cmap = plt.get_cmap("viridis")
-    colors = cmap(np.linspace(0, 1, len(unique_labels)))
+    colors = plt.get_cmap("viridis")(np.linspace(0, 1, len(unique_labels)))
     label_colors = {label: colors[i] for i, label in enumerate(unique_labels)}
 
-    # Set up the subplots grid
+    # Create plot grid
     fig, axes = plt.subplots(n_dimensions, n_dimensions, figsize=(15, 15))
-    
-    handles = []
-    plot_labels = []
+    handles, plot_labels = [], []
 
-    # Loop over the grid and populate scatter plots and diagonal histograms
     for i in range(n_dimensions):
         for j in range(n_dimensions):
             ax = axes[i, j]
             
-            # Diagonal case: Plot a histogram (or a KDE plot) for the distribution of each dimension
-            if i == j:
+            if i == j:  # Diagonal: histogram
                 sns.histplot(data[:, i], ax=ax, kde=True, color="gray")
                 ax.set_title(f'Dimension {i + 1} Distribution')
-            
-            # Off-diagonal case: Create pairwise scatter plots for all combinations of dimensions
-            else:
+            else:  # Off-diagonal: scatter
                 for label in unique_labels:
                     points = data[labels == label]
-                    sc = ax.scatter(points[:, j], points[:, i], label=f'Label {label}', color=label_colors[label], alpha=0.7)
+                    sc = ax.scatter(points[:, j], points[:, i], 
+                                  label=f'Label {label}',
+                                  color=label_colors[label], 
+                                  alpha=0.7)
                     
-                    # Collect handles and labels for the legend
-                    if (i == 0) and (j == 1):  # Only collect from one axis to avoid duplicates
+                    if (i == 0) and (j == 1):
                         handles.append(sc)
                         plot_labels.append(f'Label {label}')
+                        
                 ax.set_xlabel(f'Dim {j + 1}')
                 ax.set_ylabel(f'Dim {i + 1}')
-    
-    # Add a single legend outside the subplots
-    fig.legend(handles, plot_labels, loc='upper right', bbox_to_anchor=(1.1, 0.9), fontsize=30)
-    
-    
+
+    fig.legend(handles, plot_labels, 
+              loc='upper right',
+              bbox_to_anchor=(1.1, 0.9), 
+              fontsize=30)
     
     plt.suptitle('Scatter Plot Matrix with Diagonal Histograms')
     plt.tight_layout(rect=[0, 0, 0.9, 0.96])
-    if saveloc != None:
+    
+    if saveloc:
         plt.savefig(saveloc)
-    
     plt.show()
+
+def basic_csp(C1, C2):
+    """
+    Computes Common Spatial Patterns between two covariance matrices.
     
-    
-    #%%
-def basic_csp(C1,C2):
-#inputs: C1 and C2, 2 covariance matrices of same size
-#outputs: csp_eigvecs, projected_eigvals1, projected_eigvals2, (using diag(w'*C*w))
-    eigvals, csp_eigvecs = eigh(C1, C1+C2, eigvals_only=False)
-    projected_eigvals1 = np.diag(np.dot(np.dot(np.transpose(csp_eigvecs),C1),csp_eigvecs))
-    projected_eigvals2 = np.diag(np.dot(np.dot(np.transpose(csp_eigvecs),C2),csp_eigvecs))
+    Parameters:
+        C1, C2: Covariance matrices of same size
+        
+    Returns:
+        csp_eigvecs: CSP eigenvectors
+        projected_eigvals1, projected_eigvals2: Projected eigenvalues
+    """
+    eigvals, csp_eigvecs = eigh(C1, C1 + C2)
+    projected_eigvals1 = np.diag(csp_eigvecs.T @ C1 @ csp_eigvecs)
+    projected_eigvals2 = np.diag(csp_eigvecs.T @ C2 @ csp_eigvecs)
     return csp_eigvecs, projected_eigvals1, projected_eigvals2
 
-#%%
-def features_csp(csp_eigvecs,covariances):
-#inputs: csp_eigvecs is output of basic_csp,
-#        covariances is a 3d numpy array of covariance matrices,with first dimension de number of covariances
-#output: log-variance of data projections to csp_eigvecs
-    features=np.ndarray(shape=(covariances.shape[0],covariances.shape[1]))
+def features_csp(csp_eigvecs, covariances):
+    """
+    Extracts CSP features from covariance matrices.
+    
+    Parameters:
+        csp_eigvecs: CSP eigenvectors from basic_csp
+        covariances: 3D array of covariance matrices
+        
+    Returns:
+        features: Log-variance of projections
+    """
+    features = np.empty((covariances.shape[0], covariances.shape[1]))
     for i in range(covariances.shape[0]):
         features[i,:]= np.log(np.diag(np.dot(np.dot(np.transpose(csp_eigvecs),np.squeeze(covariances[i,:,:])),csp_eigvecs)))
     return features

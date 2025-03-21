@@ -12,21 +12,29 @@ from sklearn.metrics import adjusted_rand_score
 
 #%% generate toy matrices
 
-toymats=simhelp.generate_symmetric_matrices(num_samples=100, matrix_size=20, num_classes=4,
-                                        signal_strength=0.3, noise_level=1.0, random_state=77)
-          
-#%% extract values  
+# Generate synthetic data for testing
+toymats = simhelp.generate_symmetric_matrices(
+    num_samples=100,
+    matrix_size=20, 
+    num_classes=4,
+    signal_strength=0.3,
+    noise_level=1.0,
+    random_state=77
+)
+
+# Extract matrices and ground truth labels
 mats = toymats[0]
 labels_gt = toymats[1]
 
-#%%
-labels,clusters,embedding = cd.clubs(mats, DRdim=10)
+# Run CLUBS clustering
+labels, clusters, embedding = cd.clubs(
+    mats,
+    DRdim=10  # Consider trying different dimensions
+)
 
-#%% accuracy score
-
+# Evaluate clustering performance
 ari = adjusted_rand_score(labels, labels_gt)
-print(ari)
+print(f"Adjusted Rand Index: {ari:.3f}")
 
-#%% plot embedding
-
-cd.plot_multiscatter(embedding,labels)
+# Visualize results
+cd.plot_multiscatter(embedding, labels)
