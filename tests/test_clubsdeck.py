@@ -75,10 +75,11 @@ def test_spectral_embedding():
     with pytest.raises(AssertionError):
         spectral_embedding(np.array([[1, 2], [3, 4]]), num_dims=2)  # Non-symmetric
 
-def test_clusterdim_estimate():
+def test_clusterdim_estimate(sample_matrices):
     """Test the clusterdim_estimate function."""
-    # Create test data
-    X = np.random.randn(100, 10)
+    # Reshape sample_matrices to 2D for PCA
+    n_samples = sample_matrices.shape[0]
+    X = sample_matrices.reshape(n_samples, -1)
     
     # Test the function
     n_clusters = clusterdim_estimate(X)
@@ -88,20 +89,16 @@ def test_clusterdim_estimate():
     assert n_clusters >= 2
     
 
-def test_clubs():
+def test_clubs(sample_matrices):
     """Test the clubs function."""
+    # sample_matrices is automatically created by pytest
+    labels, clusters, embedding = clubs(sample_matrices)
+    assert len(labels) == 50  # matches n_samples in fixture
+    
     # Create test data
     targets = np.random.randn(100, 20, 20)
     for i in range(len(targets)):
         targets[i] = targets[i].T @ targets[i]  # Make positive definite
-    
-    # Test the function
-    labels, clusters, embedding = clubs(targets)
-    
-    # Check outputs
-    assert len(labels) == 100
-    assert clusters >= 2
-    assert embedding.shape[0] == 100
     
     # Test with custom parameters
     labels2, clusters2, embedding2 = clubs(

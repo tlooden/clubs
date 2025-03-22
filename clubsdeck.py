@@ -104,7 +104,15 @@ def clusterdim_estimate(X, plot=False):
     x_knee = np.arange(len(y_knee))
     
     kneedle = KneeLocator(x_knee, y_knee, curve='convex', direction='decreasing')
-    knee = max(kneedle.knee, 2)  # Ensure minimum of 2 clusters
+    knee = kneedle.knee
+    
+    # If no knee point found, use the number of components that explain 80% of variance
+    if knee is None:
+        cumsum = np.cumsum(y_knee)
+        knee = np.argmax(cumsum >= 0.8) + 1
+    
+    # Ensure minimum of 2 clusters
+    knee = max(knee, 2)
     
     if plot:
         plot_PCA(y_knee, 'PCA Explained Variance')
