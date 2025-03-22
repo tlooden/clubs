@@ -109,7 +109,7 @@ def clusterdim_estimate(X, plot=False):
     if plot:
         plot_PCA(y_knee, 'PCA Explained Variance')
         
-    return knee
+    return int(knee)
 
 def select_columns(matrix, n):
     """
