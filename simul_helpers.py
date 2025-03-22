@@ -1,5 +1,3 @@
-
-
 import numpy as np
 
 from scipy.sparse import csr_matrix
@@ -41,6 +39,9 @@ def generate_symmetric_matrices(num_samples=100, matrix_size=20, num_classes=4,
     labels : ndarray of shape (num_samples * num_classes,)
         Class labels corresponding to each matrix
     """
+    if matrix_size <= 0 or num_samples <= 0 or num_classes <= 0:
+        raise ValueError("Matrix size, number of samples, and number of classes must be positive")
+    
     rng = np.random.RandomState(random_state)
     
     # Pre-allocate arrays
