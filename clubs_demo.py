@@ -23,6 +23,7 @@ from sklearn.metrics import adjusted_rand_score, silhouette_score, confusion_mat
 
 import clubsdeck as cd
 import simul_helpers as simhelp
+from visualization import plot_multiscatter
 
 # Set up logging
 logging.basicConfig(
@@ -172,7 +173,7 @@ def main():
         logger.info("Generating visualization...")
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        cd.plot_multiscatter(embedding, labels, saveloc=str(output_path))
+        plot_multiscatter(embedding, labels, saveloc=str(output_path))
         logger.info(f"Saved visualization to {output_path}")
     else:
         logger.info("No visualization save location specified, skipping visualization generation")
