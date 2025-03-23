@@ -103,6 +103,6 @@ pytest --cov=clubsdeck tests/
 The package includes several visualization functions:
 - `plot_multiscatter`: Creates scatter plot matrix with histograms
 - `plot_PCA`: Plots PCA explained variance
-- `visualize_csp_einsum`: Visualizes the CSP feature extraction process
+
 
 
