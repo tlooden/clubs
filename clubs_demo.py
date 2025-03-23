@@ -10,17 +10,19 @@ applies CLUBS clustering, and visualizes the results.
 Usage:
     python clubs_demo.py [--samples SAMPLES] [--size SIZE] [--classes CLASSES]
                         [--signal SIGNAL] [--noise NOISE] [--dim DIM] [--seed SEED]
-                        [--output OUTPUT]
+                        [--output OUTPUT] [--save-dir SAVE_DIR]
 """
 
 import argparse
 import logging
 from pathlib import Path
 import numpy as np
+import json
+from datetime import datetime
+from sklearn.metrics import adjusted_rand_score, silhouette_score, confusion_matrix
 
 import clubsdeck as cd
 import simul_helpers as simhelp
-from sklearn.metrics import adjusted_rand_score
 
 # Set up logging
 logging.basicConfig(
@@ -32,24 +34,64 @@ logger = logging.getLogger(__name__)
 def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description='CLUBS clustering demonstration')
-    parser.add_argument('--samples', type=int, default=100,
-                      help='Number of samples per class')
-    parser.add_argument('--size', type=int, default=20,
-                      help='Size of the square matrices')
-    parser.add_argument('--classes', type=int, default=4,
-                      help='Number of distinct classes')
-    parser.add_argument('--signal', type=float, default=0.3,
-                      help='Scaling factor for class-specific signal')
-    parser.add_argument('--noise', type=float, default=1.0,
-                      help='Scaling factor for random noise')
-    parser.add_argument('--dim', type=int, default=10,
-                      help='Dimension for feature reduction')
+    
+    # Data generation parameters
+    data_group = parser.add_argument_group('Data Generation')
+    data_group.add_argument('--samples', type=int, default=100,
+                           help='Number of samples per class')
+    data_group.add_argument('--size', type=int, default=20,
+                           help='Size of the square matrices')
+    data_group.add_argument('--classes', type=int, default=4,
+                           help='Number of distinct classes')
+    data_group.add_argument('--signal', type=float, default=0.3,
+                           help='Scaling factor for class-specific signal')
+    data_group.add_argument('--noise', type=float, default=1.0,
+                           help='Scaling factor for random noise')
+    
+    # CLUBS parameters
+    clubs_group = parser.add_argument_group('CLUBS Algorithm')
+    clubs_group.add_argument('--drdim', type=int, default=10,
+                           help='Dimension for feature reduction')
+    clubs_group.add_argument('--embeddingdim', type=int, default=4,
+                           help='Dimension for spectral embedding')
+    clubs_group.add_argument('--gamma', type=float, default=0.1,
+                           help='RBF kernel parameter')
+    
+    # General parameters
     parser.add_argument('--seed', type=int, default=77,
-                      help='Random seed for reproducibility')
+                       help='Random seed for reproducibility')
     parser.add_argument('--output', type=str, default=None,
-                      help='Path to save the visualization')
+                       help='Path to save the visualization')
+    parser.add_argument('--save-dir', type=str, default=None,
+                       help='Directory to save results and metrics')
     
     return parser.parse_args()
+
+def save_results(save_dir, metrics, data, params):
+    """Save results and metrics to files."""
+    # Create timestamp for unique directory
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    results_dir = Path(save_dir) / f"results_{timestamp}"
+    results_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Save parameters
+    with open(results_dir / "parameters.json", 'w') as f:
+        json.dump(params, f, indent=4)
+    
+    # Save metrics
+    with open(results_dir / "metrics.json", 'w') as f:
+        json.dump(metrics, f, indent=4)
+    
+    # Save data
+    #np.save(results_dir / "matrices.npy", data['matrices'])
+    np.save(results_dir / "labels_gt.npy", data['labels_gt'])
+    np.save(results_dir / "labels_pred.npy", data['labels_pred'])
+    np.save(results_dir / "embedding.npy", data['embedding'])
+    
+    # Save confusion matrix
+    np.save(results_dir / "confusion_matrix.npy", data['confusion_matrix'])
+    
+    return results_dir
 
 def main():
     """Main function to run the CLUBS demonstration."""
@@ -57,6 +99,9 @@ def main():
     
     # Set random seed for reproducibility
     np.random.seed(args.seed)
+    
+    # Store parameters for saving
+    params = vars(args)
     
     logger.info("Generating synthetic data...")
     toymats = simhelp.generate_symmetric_matrices(
@@ -79,23 +124,58 @@ def main():
     logger.info("Running CLUBS clustering...")
     labels, clusters, embedding = cd.clubs(
         mats,
-        DRdim=args.dim
+        DRdim=args.drdim,
+        embeddingdim=args.embeddingdim,
+        gamma=args.gamma
     )
 
-    # Evaluate clustering performance
+    # Calculate metrics
     ari = adjusted_rand_score(labels, labels_gt)
+    silhouette = silhouette_score(embedding, labels)
+    conf_matrix = confusion_matrix(labels_gt, labels)
+    
+    # Store metrics
+    metrics = {
+        'adjusted_rand_index': float(ari),
+        'silhouette_score': float(silhouette),
+        'estimated_clusters': int(clusters)
+    }
+    
+    # Store data
+    data = {
+        'matrices': mats,
+        'labels_gt': labels_gt,
+        'labels_pred': labels,
+        'embedding': embedding,
+        'confusion_matrix': conf_matrix
+    }
+    
     logger.info(f"Adjusted Rand Index: {ari:.3f}")
+    logger.info(f"Silhouette Score: {silhouette:.3f}")
     logger.info(f"Estimated number of clusters: {clusters}")
 
-    # Visualize results
-    logger.info("Generating visualization...")
-    if args.output:
-        output_path = Path(args.output)
+    # Save results if directory specified
+    if args.save_dir:
+        results_dir = save_results(args.save_dir, metrics, data, params)
+        logger.info(f"Saved results to {results_dir}")
+        
+        # Only save visualization if explicitly requested
+        if args.output:
+            output_path = results_dir / "visualization.png"
+        else:
+            output_path = None
+    else:
+        output_path = args.output
+
+    # Generate visualization only if save location specified
+    if output_path:
+        logger.info("Generating visualization...")
+        output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         cd.plot_multiscatter(embedding, labels, saveloc=str(output_path))
         logger.info(f"Saved visualization to {output_path}")
     else:
-        cd.plot_multiscatter(embedding, labels)
+        logger.info("No visualization save location specified, skipping visualization generation")
 
 if __name__ == '__main__':
     main()

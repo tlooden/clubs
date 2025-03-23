@@ -104,15 +104,7 @@ def clusterdim_estimate(X, plot=False):
     x_knee = np.arange(len(y_knee))
     
     kneedle = KneeLocator(x_knee, y_knee, curve='convex', direction='decreasing')
-    knee = kneedle.knee
-    
-    # If no knee point found, use the number of components that explain 80% of variance
-    if knee is None:
-        cumsum = np.cumsum(y_knee)
-        knee = np.argmax(cumsum >= 0.8) + 1
-    
-    # Ensure minimum of 2 clusters
-    knee = max(knee, 2)
+    knee = max(kneedle.knee, 2)  # Ensure minimum of 2 clusters
     
     if plot:
         plot_PCA(y_knee, 'PCA Explained Variance')
@@ -250,7 +242,7 @@ def plot_multiscatter(data, labels=None, saveloc=None):
     
     if saveloc:
         plt.savefig(saveloc)
-    plt.show()
+    #plt.show()
 
 def basic_csp(C1, C2):
     """

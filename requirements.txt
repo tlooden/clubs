@@ -4,4 +4,6 @@ scipy
 kneed
 seaborn
 matplotlib
-ipython
+pytest
+pytest-cov
+
