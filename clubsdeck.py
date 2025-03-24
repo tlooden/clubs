@@ -96,7 +96,7 @@ def clusterdim_estimate(X, plot=False):
     Returns:
         knee: Estimated number of clusters (minimum 2)
     """
-    pca = PCA()  
+    pca = PCA(n_components=10)
     pca.fit(X)
     
     # Find knee point in explained variance
