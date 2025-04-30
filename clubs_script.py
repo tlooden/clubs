@@ -11,7 +11,7 @@ import simul_helpers as sh
 
 
 #generate matrices
-matrices = sh.generate_symmetric_matrices(num_samples=100, matrix_size=20, num_classes=4,
+matrices = sh.generate_symmetric_matrices(num_samples=100, matrix_size=10, num_classes=4,
                               signal_strength=0.3, noise_level=1.0)[0]
 
 # Run CLUBS clustering

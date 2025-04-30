@@ -73,16 +73,14 @@ def spadefeatures(targets, reference=None, DRdim=2):
     if reference is None:
         reference = np.mean(targets, 0)
 
-    allfeatures = None
+    allfeatures=np.zeros((len(targets),DRdim*len(targets)))
+
     for i in range(len(targets)):
         csp_eigvecs, _, _ = basic_csp(reference, targets[i])
         features = features_csp(csp_eigvecs, targets)
         features2 = select_columns(features, DRdim)
         
-        if allfeatures is None:
-            allfeatures = features2
-        else:
-            allfeatures = np.vstack([allfeatures, features2])
+        allfeatures[i,:] =  features2
             
     return allfeatures
 
