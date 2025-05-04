@@ -106,21 +106,14 @@ class CLUBS:
     def _select_features(self, matrix):
         """Select features alternating between start and end."""
         num_columns = matrix.shape[1]
-        selected_columns = []
-        
-        for i in range(self.dr_dim):
-            if i % 2 == 0:
-                selected_columns.append(i // 2)
-            else:
-                selected_columns.append(num_columns - 1 - (i // 2))
-        
+        selected_columns = [
+            i // 2 if i % 2 == 0 else num_columns - 1 - (i // 2)
+            for i in range(self.dr_dim)
+        ]
         selected = matrix[:, selected_columns]
         return selected.reshape(-1, order='F')
     
-    def _rbf_kernel(self, X):
-        """Compute RBF kernel."""
-        return np.exp(-self.gamma * np.sum((X[:, None, :] - X[None, :, :]) ** 2, axis=2))
-    
+
     def _spectral_embedding(self, similarity_matrix):
         """Compute spectral embedding."""
         # Validate input
