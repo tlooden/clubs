@@ -61,7 +61,7 @@ def plot_multiscatter(data, labels=None, saveloc=None):
     
     if saveloc:
         plt.savefig(saveloc)
-    plt.close()  # Close the figure to free memory
+    
 
 def plot_PCA(y, title='Line Plot'):
     """Plots PCA explained variance."""

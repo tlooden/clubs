@@ -180,12 +180,10 @@ def basic_csp(C1, C2):
         
     Returns:
         csp_eigvecs: CSP eigenvectors
-        projected_eigvals1, projected_eigvals2: Projected eigenvalues
     """
     eigvals, csp_eigvecs = eigh(C1, C1 + C2)
-    projected_eigvals1 = np.diag(csp_eigvecs.T @ C1 @ csp_eigvecs)
-    projected_eigvals2 = np.diag(csp_eigvecs.T @ C2 @ csp_eigvecs)
-    return csp_eigvecs, projected_eigvals1, projected_eigvals2
+
+    return csp_eigvecs
 
 def features_csp(csp_eigvecs, covariances):
     """
