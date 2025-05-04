@@ -9,194 +9,169 @@ Cluster learning underpinned by SPADE (CLUBS) toolkit
 """
 
 import numpy as np
-from kneed import KneeLocator
 from scipy.linalg import eigh
-from sklearn.metrics.pairwise import rbf_kernel
 from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
-
+from sklearn.metrics.pairwise import rbf_kernel
+from kneed import KneeLocator
 from visualization import plot_multiscatter, plot_PCA
 
-def clubs(targets, reference=None, DRdim=2, embeddingdim=4, gamma=0.1, random_state=None):
+class CLUBS:
     """
-    Performs CLUBS clustering on target matrices.
+    Cluster Learning Underpinned by SPADE (CLUBS)
     
-    Parameters:
-        targets: Array of target matrices to cluster
-        reference: Reference matrix (defaults to mean of targets)
-        DRdim: Dimension for feature reduction
-        embeddingdim: Dimension for spectral embedding
-        gamma: RBF kernel parameter
-        random_state: Random seed for reproducibility
+    A class for clustering symmetric positive definite matrices using
+    Common Spatial Patterns (CSP) and spectral clustering.
+    """
+    
+    def __init__(self, dr_dim=2, embedding_dim=4, gamma=0.1, random_state=None):
+        """
+        Initialize CLUBS algorithm.
         
-    Returns:
-        labels: Cluster assignments
-        clusterdim: Estimated number of clusters
-        indicator_vectors: Spectral embedding vectors
-    """
-    # Extract SPADE features
-    features = spadefeatures(targets, reference, DRdim)
-    features_corr = np.corrcoef(features)
-    
-    # Create similarity matrix
-    A = rbf_kernel(features_corr, gamma=gamma)
-    
-    # Get spectral embedding
-    indicator_vectors = spectral_embedding(A, embeddingdim)
-    
-    # Estimate optimal number of clusters
-    clusterdim = clusterdim_estimate(features)
-    
-    # Perform clustering
-    kmeans = KMeans(
-        n_clusters=clusterdim,
-        init='k-means++',
-        n_init=10,
-        random_state=random_state
-    )
-    labels = kmeans.fit_predict(indicator_vectors)
-    
-    return labels, clusterdim, indicator_vectors
-
-def spadefeatures(targets, reference=None, DRdim=2):
-    """
-    Extracts SPADE features from target matrices.
-    
-    Parameters:
-        targets: Array of target matrices
-        reference: Reference matrix (defaults to mean of targets)
-        DRdim: Dimension for feature reduction
+        Parameters:
+            dr_dim: Dimension for feature reduction
+            embedding_dim: Dimension for spectral embedding
+            gamma: RBF kernel parameter
+            random_state: Random seed for reproducibility
+        """
+        self.dr_dim = dr_dim
+        self.embedding_dim = embedding_dim
+        self.gamma = gamma
+        self.random_state = random_state
         
-    Returns:
-        allfeatures: Matrix of extracted features
-    """
-    if reference is None:
-        reference = np.mean(targets, 0)
-
-    allfeatures=np.zeros((len(targets),DRdim*len(targets)))
-
-    for i in range(len(targets)):
-        csp_eigvecs, _, _ = basic_csp(reference, targets[i])
-        features = features_csp(csp_eigvecs, targets)
-        features2 = select_columns(features, DRdim)
+        # Results storage
+        self.embedding_ = None
+        self.labels_ = None
+        self.n_clusters_ = None
+        self.features_ = None
         
-        allfeatures[i,:] =  features2
+    def fit(self, matrices, reference=None):
+        """
+        Fit the CLUBS model to the input matrices.
+        
+        Parameters:
+            matrices: Array of symmetric positive definite matrices
+            reference: Reference matrix (defaults to mean of matrices)
+        
+        Returns:
+            self: The fitted model
+        """
+        # Extract SPADE features
+        self.features_ = self._extract_spade_features(matrices, reference)
+        features_corr = np.corrcoef(self.features_)
+        
+        # Create similarity matrix using scikit-learn's RBF kernel
+        A = rbf_kernel(features_corr, gamma=self.gamma)
+        
+        # Get spectral embedding
+        self.embedding_ = self._spectral_embedding(A)
+        
+        # Estimate optimal number of clusters
+        self.n_clusters_ = self._estimate_n_clusters(self.features_)
+        
+        # Perform clustering
+        self.labels_ = self._cluster_embedding()
+        
+        return self
+    
+    def _extract_spade_features(self, matrices, reference=None):
+        """Extract SPADE features from matrices."""
+        if reference is None:
+            reference = np.mean(matrices, 0)
+
+        n_matrices = len(matrices)
+        features = np.zeros((n_matrices, self.dr_dim * n_matrices))
+
+        for i in range(n_matrices):
+            csp_eigvecs = self._compute_csp(reference, matrices[i])
+            matrix_features = self._extract_csp_features(csp_eigvecs, matrices)
+            features[i,:] = self._select_features(matrix_features)
             
-    return allfeatures
-
-def clusterdim_estimate(X, plot=False):
-    """
-    Estimates optimal number of clusters using PCA and knee detection.
+        return features
     
-    Parameters:
-        X: Input data matrix
+    def _compute_csp(self, C1, C2):
+        """Compute Common Spatial Patterns between two matrices."""
+        eigvals, csp_eigvecs = eigh(C1, C1 + C2)
+        return csp_eigvecs
+    
+    def _extract_csp_features(self, csp_eigvecs, matrices):
+        """Extract CSP features from matrices."""
+        features = np.empty((matrices.shape[0], matrices.shape[1]))
+        for i in range(matrices.shape[0]):
+            features[i,:] = np.log(np.diag(
+                csp_eigvecs.T @ np.squeeze(matrices[i,:,:]) @ csp_eigvecs
+            ))
+        return features
+    
+    def _select_features(self, matrix):
+        """Select features alternating between start and end."""
+        num_columns = matrix.shape[1]
+        selected_columns = []
         
-    Returns:
-        knee: Estimated number of clusters (minimum 2)
-    """
-    pca = PCA(n_components=10)
-    pca.fit(X)
-    
-    # Find knee point in explained variance
-    y_knee = pca.explained_variance_ratio_
-    x_knee = np.arange(len(y_knee))
-    
-    kneedle = KneeLocator(x_knee, y_knee, curve='convex', direction='decreasing')
-    knee = max(kneedle.knee, 2)  # Ensure minimum of 2 clusters
-    
-    if plot:
-        plot_PCA(y_knee, 'PCA Explained Variance')
+        for i in range(self.dr_dim):
+            if i % 2 == 0:
+                selected_columns.append(i // 2)
+            else:
+                selected_columns.append(num_columns - 1 - (i // 2))
         
-    return int(knee)
-
-def select_columns(matrix, n):
-    """
-    Selects columns from matrix alternating between start and end.
+        selected = matrix[:, selected_columns]
+        return selected.reshape(-1, order='F')
     
-    Parameters:
-        matrix: Input matrix
-        n: Number of columns to select
+    def _rbf_kernel(self, X):
+        """Compute RBF kernel."""
+        return np.exp(-self.gamma * np.sum((X[:, None, :] - X[None, :, :]) ** 2, axis=2))
+    
+    def _spectral_embedding(self, similarity_matrix):
+        """Compute spectral embedding."""
+        # Validate input
+        assert similarity_matrix.shape[0] == similarity_matrix.shape[1]
+        assert np.allclose(similarity_matrix, similarity_matrix.T, atol=1e-8)
+
+        # Compute normalized Laplacian
+        degree_matrix = np.diag(similarity_matrix.sum(axis=1))
+        laplacian_matrix = degree_matrix - similarity_matrix
         
-    Returns:
-        selected_matrix: Matrix with selected columns, flattened
-    """
-    num_columns = matrix.shape[1]
-    selected_columns = []
-    
-    for i in range(n):
-        if i % 2 == 0:
-            selected_columns.append(i // 2)  # From start
-        else:
-            selected_columns.append(num_columns - 1 - (i // 2))  # From end
-    
-    selected_matrix = matrix[:, selected_columns]
-    return selected_matrix.reshape(-1, order='F')
-
-def spectral_embedding(similarity_matrix, num_dims):
-    """
-    Performs spectral embedding on similarity matrix.
-    
-    Parameters:
-        similarity_matrix: Square symmetric similarity matrix
-        num_dims: Number of dimensions for embedding
+        with np.errstate(divide='ignore'):
+            D_inv_sqrt = np.diag(1.0 / np.sqrt(np.diag(degree_matrix)))
+            D_inv_sqrt[np.isinf(D_inv_sqrt)] = 0
         
-    Returns:
-        indicator_vectors: Eigenvectors for embedding
-    """
-    # Validate input
-    assert similarity_matrix.shape[0] == similarity_matrix.shape[1], "Matrix must be square"
-    assert np.allclose(similarity_matrix, similarity_matrix.T, atol=1e-8), "Matrix must be symmetric"
+        L_sym = D_inv_sqrt @ laplacian_matrix @ D_inv_sqrt
+        L_sym = (L_sym + L_sym.T) / 2
 
-    # Compute normalized Laplacian
-    degree_matrix = np.diag(similarity_matrix.sum(axis=1))
-    laplacian_matrix = degree_matrix - similarity_matrix
+        # Get eigenvectors
+        eigenvalues, eigenvectors = np.linalg.eigh(L_sym)
+        idx = np.argsort(eigenvalues)
+        eigenvalues = eigenvalues[idx]
+        eigenvectors = eigenvectors[:, idx]
+
+        # Select vectors
+        epsilon = 1e-8
+        nonzero_indices = np.where(eigenvalues > epsilon)[0]
+        return eigenvectors[:, nonzero_indices[:self.embedding_dim]]
     
-    with np.errstate(divide='ignore'):
-        D_inv_sqrt = np.diag(1.0 / np.sqrt(np.diag(degree_matrix)))
-        D_inv_sqrt[np.isinf(D_inv_sqrt)] = 0
-    
-    L_sym = D_inv_sqrt @ laplacian_matrix @ D_inv_sqrt
-    L_sym = (L_sym + L_sym.T) / 2  # Ensure symmetry
-
-    # Get eigenvectors
-    eigenvalues, eigenvectors = np.linalg.eigh(L_sym)
-    idx = np.argsort(eigenvalues)
-    eigenvalues = eigenvalues[idx]
-    eigenvectors = eigenvectors[:, idx]
-
-    # Select vectors for smallest non-zero eigenvalues
-    epsilon = 1e-8
-    nonzero_indices = np.where(eigenvalues > epsilon)[0]
-    indicator_vectors = eigenvectors[:, nonzero_indices[:num_dims]]
-
-    return indicator_vectors
-
-def basic_csp(C1, C2):
-    """
-    Computes Common Spatial Patterns between two covariance matrices.
-    
-    Parameters:
-        C1, C2: Covariance matrices of same size
+    def _estimate_n_clusters(self, X, plot=False):
+        """Estimate optimal number of clusters."""
+        pca = PCA(n_components=10)
+        pca.fit(X)
         
-    Returns:
-        csp_eigvecs: CSP eigenvectors
-    """
-    eigvals, csp_eigvecs = eigh(C1, C1 + C2)
-
-    return csp_eigvecs
-
-def features_csp(csp_eigvecs, covariances):
-    """
-    Extracts CSP features from covariance matrices.
-    
-    Parameters:
-        csp_eigvecs: CSP eigenvectors from basic_csp
-        covariances: 3D array of covariance matrices
+        y_knee = pca.explained_variance_ratio_
+        x_knee = np.arange(len(y_knee))
         
-    Returns:
-        features: Log-variance of projections
-    """
-    features = np.empty((covariances.shape[0], covariances.shape[1]))
-    for i in range(covariances.shape[0]):
-        features[i,:]= np.log(np.diag(np.dot(np.dot(np.transpose(csp_eigvecs),np.squeeze(covariances[i,:,:])),csp_eigvecs)))
-    return features
+        kneedle = KneeLocator(x_knee, y_knee, curve='convex', direction='decreasing')
+        n_clusters = max(kneedle.knee, 2)
+        
+        if plot:
+            plot_PCA(y_knee, 'PCA Explained Variance')
+            
+        return int(n_clusters)
+    
+    def _cluster_embedding(self):
+        """Perform clustering on the embedding."""
+        kmeans = KMeans(
+            n_clusters=self.n_clusters_,
+            init='k-means++',
+            n_init=10,
+            random_state=self.random_state
+        )
+        return kmeans.fit_predict(self.embedding_)
+

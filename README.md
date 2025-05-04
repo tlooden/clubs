@@ -29,8 +29,8 @@ conda activate clubs_demo
 
 ### Basic Example
 ```python
+from clubsdeck import CLUBS
 import numpy as np
-import clubsdeck as cd
 
 # Generate some sample symmetric positive definite matrices
 n_samples = 100
@@ -38,8 +38,14 @@ matrix_size = 20
 matrices = np.random.randn(n_samples, matrix_size, matrix_size)
 matrices = np.einsum('nij,nkj->nik', matrices, matrices)  # Make positive definite
 
-# Run CLUBS clustering
-labels, n_clusters, embedding = cd.clubs(matrices)
+# Create and fit CLUBS model
+model = CLUBS(dr_dim=8, embedding_dim=4, gamma=0.1)
+model.fit(matrices)
+
+# Access results
+labels = model.labels_  # Cluster assignments
+embedding = model.embedding_  # Spectral embedding
+n_clusters = model.n_clusters_  # Estimated number of clusters
 ```
 
 ### Command Line Interface
@@ -58,19 +64,20 @@ python clubs_demo.py --save-dir ./results --output ./results/visualization.png
 
 ### Available Parameters
 
-#### Data Generation Parameters
+#### CLUBS Model Parameters
+- `dr_dim`: Dimension for feature reduction (default: 2)
+- `embedding_dim`: Dimension for spectral embedding (default: 4)
+- `gamma`: RBF kernel parameter (default: 0.1)
+- `random_state`: Random seed for reproducibility
+
+#### Data Generation Parameters (Demo Script)
 - `--samples`: Number of samples per class (default: 100)
 - `--size`: Size of the square matrices (default: 20)
 - `--classes`: Number of distinct classes (default: 4)
 - `--signal`: Scaling factor for class-specific signal (default: 0.3)
 - `--noise`: Scaling factor for random noise (default: 1.0)
 
-#### CLUBS Algorithm Parameters
-- `--drdim`: Dimension for feature reduction (default: 10)
-- `--embeddingdim`: Dimension for spectral embedding (default: 4)
-- `--gamma`: RBF kernel parameter (default: 0.1)
-
-#### General Parameters
+#### General Parameters (Demo Script)
 - `--seed`: Random seed for reproducibility (default: 77)
 - `--output`: Path to save the visualization
 - `--save-dir`: Directory to save results and metrics
