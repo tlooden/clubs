@@ -74,6 +74,20 @@ class CLUBS:
         
         return self
     
+    def fit_predict(self, matrices, reference=None):
+        """
+        Fit the model and predict cluster labels for matrices.
+        
+        Parameters:
+            matrices: Array of symmetric positive definite matrices
+            reference: Reference matrix (defaults to mean of matrices)
+            
+        Returns:
+            labels: ndarray of shape (n_samples,)
+                Index of the cluster each sample belongs to.
+        """
+        return self.fit(matrices, reference).labels_
+    
     def _extract_spade_features(self, matrices, reference=None):
         """Extract SPADE features from matrices."""
         if reference is None:

@@ -24,14 +24,14 @@ matrices, labels_gt = sh.generate_symmetric_matrices(
 
 # Create and fit CLUBS model
 model = CLUBS(dr_dim=8, embedding_dim=4, gamma=0.1, random_state=1)
-model.fit(matrices)
+labels_pred = model.fit_predict(matrices)
 
 # Calculate metrics
-ari = adjusted_rand_score(model.labels_, labels_gt)
-silhouette = silhouette_score(model.embedding_, model.labels_)
+ari = adjusted_rand_score(labels_pred, labels_gt)
+silhouette = silhouette_score(model.embedding_, labels_pred)
 
 # Plot results
-plot_multiscatter(model.embedding_, model.labels_)
+plot_multiscatter(model.embedding_, labels_pred)
 
 
 #%%

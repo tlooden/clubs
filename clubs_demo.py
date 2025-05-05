@@ -123,12 +123,12 @@ def main():
         gamma=args.gamma,
         random_state=args.seed
     )
-    model.fit(mats)
+    labels_pred = model.fit_predict(mats)
     
     # Calculate metrics
-    ari = adjusted_rand_score(model.labels_, labels_gt)
-    silhouette = silhouette_score(model.embedding_, model.labels_)
-    conf_matrix = confusion_matrix(labels_gt, model.labels_)
+    ari = adjusted_rand_score(labels_pred, labels_gt)
+    silhouette = silhouette_score(model.embedding_, labels_pred)
+    conf_matrix = confusion_matrix(labels_gt, labels_pred)
     
     # Store metrics
     metrics = {
@@ -140,7 +140,7 @@ def main():
     # Store data
     data = {
         'labels_gt': labels_gt,
-        'labels_pred': model.labels_,
+        'labels_pred': labels_pred,
         'embedding': model.embedding_,
         'confusion_matrix': conf_matrix
     }
@@ -167,7 +167,7 @@ def main():
         logger.info("Generating visualization...")
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        plot_multiscatter(model.embedding_, model.labels_, saveloc=str(output_path))
+        plot_multiscatter(model.embedding_, labels_pred, saveloc=str(output_path))
         logger.info(f"Saved visualization to {output_path}")
     else:
         logger.info("No visualization save location specified, skipping visualization generation")
