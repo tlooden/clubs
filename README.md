@@ -12,6 +12,8 @@ The algorithm combines:
 3. Automatic cluster number estimation
 4. K-means++ clustering
 
+The implementation follows scikit-learn conventions for clustering estimators, providing familiar methods like `fit`, `fit_predict`, and consistent parameter naming.
+
 ## Installation
 
 ### Using pip
@@ -40,12 +42,17 @@ matrices = np.einsum('nij,nkj->nik', matrices, matrices)  # Make positive defini
 
 # Create and fit CLUBS model
 model = CLUBS(dr_dim=8, embedding_dim=4, gamma=0.1)
-model.fit(matrices)
 
-# Access results
-labels = model.labels_  # Cluster assignments
+# Get cluster assignments (using fit_predict)
+labels = model.fit_predict(matrices)
+
+# Access other attributes
 embedding = model.embedding_  # Spectral embedding
 n_clusters = model.n_clusters_  # Estimated number of clusters
+
+# Alternatively, you can use fit() and access labels_
+model.fit(matrices)
+labels = model.labels_
 ```
 
 ### Command Line Interface
@@ -78,7 +85,7 @@ python clubs_demo.py --save-dir ./results --output ./results/visualization.png
 - `--noise`: Scaling factor for random noise (default: 1.0)
 
 #### General Parameters (Demo Script)
-- `--seed`: Random seed for reproducibility (default: 77)
+- `--seed`: Random seed for reproducibility (default: None for random behavior)
 - `--output`: Path to save the visualization
 - `--save-dir`: Directory to save results and metrics
 
