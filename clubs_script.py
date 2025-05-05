@@ -35,4 +35,4 @@ plot_multiscatter(model.embedding_, model.labels_)
 
 
 #%%
-
+print(silhouette)
