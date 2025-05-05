@@ -165,7 +165,7 @@ class CLUBS:
         x_knee = np.arange(len(y_knee))
         
         kneedle = KneeLocator(x_knee, y_knee, curve='convex', direction='decreasing')
-        n_clusters = max(kneedle.knee, 2)
+        n_clusters = max(kneedle.knee-1, 2)
         
         if plot:
             plot_PCA(y_knee, 'PCA Explained Variance')
