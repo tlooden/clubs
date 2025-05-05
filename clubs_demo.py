@@ -59,8 +59,8 @@ def parse_args():
                            help='RBF kernel parameter')
     
     # General parameters
-    parser.add_argument('--seed', type=int, default=77,
-                       help='Random seed for reproducibility')
+    parser.add_argument('--seed', type=int, default=None,
+                       help='Random seed for reproducibility (default: None for random behavior)')
     parser.add_argument('--output', type=str, default=None,
                        help='Path to save the visualization')
     parser.add_argument('--save-dir', type=str, default=None,
@@ -97,7 +97,8 @@ def main():
     args = parse_args()
     
     # Set random seed for reproducibility
-    np.random.seed(args.seed)
+    if args.seed is not None:
+        np.random.seed(args.seed)
     params = vars(args)
     
     # Generate synthetic data
