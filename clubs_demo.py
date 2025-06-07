@@ -21,7 +21,7 @@ import json
 from datetime import datetime
 from sklearn.metrics import adjusted_rand_score, silhouette_score, confusion_matrix
 
-import clubsdeck as cd
+from clubsdeck import CLUBS
 import simul_helpers as simhelp
 from visualization import plot_multiscatter
 
@@ -59,8 +59,8 @@ def parse_args():
                            help='RBF kernel parameter')
     
     # General parameters
-    parser.add_argument('--seed', type=int, default=77,
-                       help='Random seed for reproducibility')
+    parser.add_argument('--seed', type=int, default=None,
+                       help='Random seed for reproducibility (default: None for random behavior)')
     parser.add_argument('--output', type=str, default=None,
                        help='Path to save the visualization')
     parser.add_argument('--save-dir', type=str, default=None,
@@ -84,12 +84,10 @@ def save_results(save_dir, metrics, data, params):
         json.dump(metrics, f, indent=4)
     
     # Save data
-    #np.save(results_dir / "matrices.npy", data['matrices'])
+    
     np.save(results_dir / "labels_gt.npy", data['labels_gt'])
     np.save(results_dir / "labels_pred.npy", data['labels_pred'])
     np.save(results_dir / "embedding.npy", data['embedding'])
-    
-    # Save confusion matrix
     np.save(results_dir / "confusion_matrix.npy", data['confusion_matrix'])
     
     return results_dir
@@ -99,13 +97,13 @@ def main():
     args = parse_args()
     
     # Set random seed for reproducibility
-    np.random.seed(args.seed)
-    
-    # Store parameters for saving
+    if args.seed is not None:
+        np.random.seed(args.seed)
     params = vars(args)
     
+    # Generate synthetic data
     logger.info("Generating synthetic data...")
-    toymats = simhelp.generate_symmetric_matrices(
+    mats, labels_gt = simhelp.generate_symmetric_matrices(
         num_samples=args.samples,
         matrix_size=args.size,
         num_classes=args.classes,
@@ -114,47 +112,44 @@ def main():
         random_state=args.seed
     )
 
-    # Extract matrices and ground truth labels
-    mats = toymats[0]
-    labels_gt = toymats[1]
     
     logger.info(f"Generated {len(mats)} matrices of size {mats.shape[1]}x{mats.shape[2]}")
     logger.info(f"Number of classes: {args.classes}")
 
     # Run CLUBS clustering
     logger.info("Running CLUBS clustering...")
-    labels, clusters, embedding = cd.clubs(
-        mats,
-        DRdim=args.drdim,
-        embeddingdim=args.embeddingdim,
-        gamma=args.gamma
+    model = CLUBS(
+        dr_dim=args.drdim,
+        embedding_dim=args.embeddingdim,
+        gamma=args.gamma,
+        random_state=args.seed
     )
-
+    labels_pred = model.fit_predict(mats)
+    
     # Calculate metrics
-    ari = adjusted_rand_score(labels, labels_gt)
-    silhouette = silhouette_score(embedding, labels)
-    conf_matrix = confusion_matrix(labels_gt, labels)
+    ari = adjusted_rand_score(labels_pred, labels_gt)
+    silhouette = silhouette_score(model.embedding_, labels_pred)
+    conf_matrix = confusion_matrix(labels_gt, labels_pred)
     
     # Store metrics
     metrics = {
         'adjusted_rand_index': float(ari),
         'silhouette_score': float(silhouette),
-        'estimated_clusters': int(clusters)
+        'estimated_clusters': int(model.n_clusters_)
     }
     
     # Store data
     data = {
-        'matrices': mats,
         'labels_gt': labels_gt,
-        'labels_pred': labels,
-        'embedding': embedding,
+        'labels_pred': labels_pred,
+        'embedding': model.embedding_,
         'confusion_matrix': conf_matrix
     }
     
     logger.info(f"Adjusted Rand Index: {ari:.3f}")
     logger.info(f"Silhouette Score: {silhouette:.3f}")
-    logger.info(f"Estimated number of clusters: {clusters}")
-
+    logger.info(f"Estimated number of clusters: {model.n_clusters_}")
+    
     # Save results if directory specified
     if args.save_dir:
         results_dir = save_results(args.save_dir, metrics, data, params)
@@ -173,7 +168,7 @@ def main():
         logger.info("Generating visualization...")
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        plot_multiscatter(embedding, labels, saveloc=str(output_path))
+        plot_multiscatter(model.embedding_, labels_pred, saveloc=str(output_path))
         logger.info(f"Saved visualization to {output_path}")
     else:
         logger.info("No visualization save location specified, skipping visualization generation")
