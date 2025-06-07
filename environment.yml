@@ -1,4 +1,4 @@
-name: clubs_demo
+name: clubs
 channels:
   - conda-forge
   - defaults
